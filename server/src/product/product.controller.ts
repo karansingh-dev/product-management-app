@@ -125,6 +125,30 @@ export class ProductController {
 
     }
 
+    @Post("/restore-product/:id")
+    async restoreProduct(@Param() param: { id: string }, @Res() res: Response) {
+
+        const isValiduuid = isValidUUID(param.id);
+
+        if (!isValiduuid) {
+            return response.error(res, "Invlaid id", "Invalid uuid format")
+        }
+
+        const productExists = await this.productService.checkProductExistsById(param.id);
+
+        if (!productExists) {
+            return response.error(res, "Product not found", "Invalid id", 404);
+        }
+
+
+        await this.productService.restoreProduct(param.id);
+
+        return response.okMessage(res, "Product restored successfully", 200);
+
+
+
+    }
+
 
 
 
