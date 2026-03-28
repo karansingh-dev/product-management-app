@@ -26,7 +26,7 @@ export async function api<T>(
             data,
             params,
         });
-        return res.data;
+        return res.data ;
     } catch (err: unknown) {
         console.error(`Unexpected API error:`, err);
         throw err;

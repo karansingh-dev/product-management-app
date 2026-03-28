@@ -7,23 +7,16 @@ export interface Pagination {
 
 }
 
-type SuccessWithData<T> = {
-  success: true;
-  message: string;
-  data: T;
-  pagination?: Pagination;
-};
-
-type SuccessWithoutData = {
-  success: true;
-  message: string;
-};
 
 export type ApiResponse<T = null> =
-  | SuccessWithData<T>
-  | SuccessWithoutData
+  | {
+      success: true;
+      message: string;
+      data: T;
+      pagination?: Pagination;
+    }
   | {
       success: false;
       error: string;
-      message:string
+      message: string;
     };
