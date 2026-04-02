@@ -9,8 +9,23 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useForm, type SubmitHandler } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod";
+import { productSchema, type ProductFormData } from "@/schemas";
+
+
 import {
   Table,
   TableBody,
@@ -19,6 +34,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
+import BasicLoader from "../atoms/basic-loader";
 
 export interface Product {
   id: string;
@@ -89,7 +107,7 @@ function ProductPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopBar />
+      <TopBar products={products} setProducts={setProducts} />
 
       <main className="mx-auto max-w-6xl px-6 py-8">
         {/* Page heading + search */}
@@ -224,7 +242,9 @@ function ProductPage() {
   );
 }
 
-function TopBar() {
+function TopBar({ products, setProducts }: { products: Product[], setProducts: (products: Product[]) => void }) {
+
+  const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur-lg">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
@@ -239,11 +259,7 @@ function TopBar() {
             </div>
           </div>
         </div>
-
-        <Button size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
-          Add Product
-        </Button>
+        <AddProductDialog open={open} setOpen={setOpen} products={products} setProducts={setProducts} />
       </div>
     </header>
   );
@@ -349,5 +365,159 @@ function getVisiblePages(current: number, total: number): (number | "...")[] {
   pages.push(total);
   return pages;
 }
+
+
+export function AddProductDialog({ products, setProducts, open, setOpen }: { products: Product[], setProducts: (products: Product[]) => void, open: boolean, setOpen: (open: boolean) => void }) {
+
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isLoading },
+    watch,
+    setValue,
+    reset,
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      totalPrice: 0,
+      totalDiscount: 0,
+      quantity: 1,
+      pricePerItem: 0,
+    }
+  });
+
+  const totalPrice = watch("pricePerItem") * watch("quantity");
+
+  const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+    if (value < 0) {
+      setValue("totalDiscount", 0);
+      toast.error("Discount can't be less than zero");
+    } else {
+      if (value > totalPrice) {
+        setValue("totalDiscount", totalPrice);
+        toast.error("Discount can't be greater than total price");
+      } else {
+        setValue("totalDiscount", value);
+      }
+      setValue("totalDiscount", value);
+    }
+  }
+
+  const createProduct = async (data: ProductFormData, setProducts: (products: Product[]) => void, products: Product[]) => {
+    try {
+
+     
+      const payload = {
+        title: data.title,
+        description: data.description,
+        totalPrice: totalPrice,
+        totalDiscount: data.totalDiscount,
+        quantity: data.quantity,
+      }
+      const res = await api<Product>("POST", "/product", { data: payload });
+      if (res.success) {
+        setProducts([...products, res.data]);
+        reset();
+        toast.success("Product created successfully");
+        setOpen(false);
+      } else {
+        toast.error("Failed to create product");
+        reset();
+
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Something went wrong");
+    }
+  }
+
+
+
+
+  const onSubmit: SubmitHandler<ProductFormData> = async (data) => {
+    await createProduct(data, setProducts, products);
+  }
+
+
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen} >
+      <form>
+        <DialogTrigger asChild>
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Add Product
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="">
+          <DialogHeader>
+            <DialogTitle>Add Product</DialogTitle>
+            <DialogDescription>
+              Add a new product and click save when you&apos;re
+              done.
+            </DialogDescription>
+          </DialogHeader>
+          <form id="product-form" onSubmit={handleSubmit(onSubmit)} >
+            <div className="flex gap-4">
+
+
+
+              <div className="flex flex-col gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" {...register("title")} />
+                  {errors.title && <p className="text-red-500 text-xs">{errors.title.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input id="quantity" {...register("quantity", { valueAsNumber: true })} type="number" step="1" min="1" />
+                  {errors.quantity && <p className="text-red-500 text-xs ">{errors.quantity.message}</p>}
+                </div>
+
+              </div>
+
+
+              <div className="flex flex-col gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="totalPrice">Price</Label>
+                  <Input id="totalPrice"  {...register("pricePerItem", { valueAsNumber: true })} type="number" step="0.01" min="0" />
+                  {errors.pricePerItem && <p className="text-red-500 text-xs">{errors.pricePerItem.message}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="totalDiscount">Total Discount</Label>
+                  <Input id="totalDiscount" onChange={handleDiscountChange} type="number" step="0.01" min="0" max={Number(totalPrice)} />
+                  {errors.totalDiscount && <p className="text-red-500 text-xs">{errors.totalDiscount.message}</p>}
+                </div>
+
+              </div>
+
+            </div>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="totalPrice">Total Price</Label>
+              <Input id="totalPrice" value={totalPrice || "--"} readOnly />
+            </div>
+            <div className="space-y-2 mt-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" {...register("description")} />
+              {errors.description && <p className="text-red-500 text-xs">{errors.description.message}</p>}
+            </div>
+          </form>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button form="product-form" className="cursor-pointer" type="submit" disabled={isLoading}>{isLoading ? <BasicLoader /> : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </form>
+    </Dialog>
+  )
+}
+
 
 export default ProductPage;
